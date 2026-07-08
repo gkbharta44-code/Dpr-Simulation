@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPR Ledger — Perpetual Simulation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0F1C;
+    --panel:#111A2C;
+    --panel-2:#0D1524;
+    --line:#25324A;
+    --gold:#C9A15D;
+    --gold-dim:#8A7142;
+    --cream:#EDE7DC;
+    --muted:#8B93A7;
+    --green:#5FB88F;
+    --brick:#C4563F;
+    --shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(201,161,93,0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(95,184,143,0.05), transparent 55%),
+      var(--ink);
+    color:var(--cream);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding: clamp(14px, 3vw, 34px);
+  }
+  .wrap{ max-width:1180px; margin:0 auto; }
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+    flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px; margin-bottom:22px;
+  }
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--gold); margin:0 0 8px 0;
+  }
+  h1{
+    font-family:'Fraunces', serif; font-weight:600; font-optical-sizing:auto;
+    font-size:clamp(28px, 4vw, 40px); margin:0; line-height:1.05; letter-spacing:-.01em;
+  }
+  .sub{ font-size:13px; color:var(--muted); margin-top:8px; max-width:520px; line-height:1.5;}
+  .status{
+    display:flex; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted);
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(95,184,143,0.15); }
+  .dot.paused{ background:var(--muted); box-shadow:none; }
+  @media (prefers-reduced-motion: no-preference){
+    .dot.live{ animation: pulse 1.6s ease-in-out infinite; }
+  }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  /* ---------- Controls ---------- */
+  .controls{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:22px;
+  }
+  button{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:.04em;
+    background:var(--panel); color:var(--cream); border:1px solid var(--line);
+    padding:9px 14px; border-radius:3px; cursor:pointer; transition:border-color .15s, color .15s;
+  }
+  button:hover{ border-color:var(--gold); color:var(--gold); }
+  button:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+  button.active{ background:var(--gold); color:#241A08; border-color:var(--gold); font-weight:600; }
+  .spacer{ flex:1 1 auto; }
+  .speed-group{ display:flex; gap:2px; background:var(--panel-2); padding:3px; border-radius:4px; border:1px solid var(--line); }
+  .speed-group button{ border:none; background:transparent; padding:6px 11px; }
+  .speed-group button.active{ background:var(--gold); color:#241A08; border-radius:2px; }
+
+  /* ---------- KPI strip ---------- */
+  .kpis{
+    display:grid; grid-template-columns: repeat(4, 1fr); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;
+    margin-bottom:20px; box-shadow:var(--shadow);
+  }
+  .kpi{ background:var(--panel); padding:18px 20px; }
+  .kpi .label{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;}
+  .kpi .value{ font-family:'IBM Plex Mono', monospace; font-size:clamp(19px,2.4vw,26px); font-weight:600; color:var(--cream); font-variant-numeric: tabular-nums;}
+  .kpi .value.gold{ color:var(--gold); }
+  .kpi .value.green{ color:var(--green); }
+  .kpi .foot{ font-size:11px; color:var(--muted); margin-top:6px; font-family:'IBM Plex Mono', monospace;}
+
+  /* ---------- Chart panel ---------- */
+  .chart-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:20px 18px 12px; margin-bottom:20px; box-shadow:var(--shadow);
+  }
+  .chart-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px;}
+  .chart-title{ font-family:'Fraunces', serif; font-size:16px; font-weight:500; color:var(--cream);}
+  .chart-legend{ display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); }
+  .legend-item{ display:flex; align-items:center; gap:6px;}
+  .swatch{ width:14px; height:2px; display:inline-block;}
+  canvas{ width:100%; height:260px; display:block; }
+
+  /* ---------- Two column: supply + ledger ---------- */
+  .grid2{ display:grid; grid-template-columns: 1fr 1.3fr; gap:20px; align-items:stretch; }
+  @media (max-width:760px){ .grid2{ grid-template-columns:1fr; } .kpis{grid-template-columns:1fr 1fr;} }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:20px 18px; box-shadow:var(--shadow);
+  }
+  .panel h2{
+    font-family:'Fraunces', serif; font-size:16px; font-weight:500; margin:0 0 14px 0; color:var(--cream);
+  }
+
+  /* supply gauge */
+  .gauge-track{
+    height:10px; background:var(--panel-2); border-radius:5px; overflow:hidden; border:1px solid var(--line); margin:12px 0 8px;
+  }
+  .gauge-fill{ height:100%; background:linear-gradient(90deg, var(--gold-dim), var(--gold)); width:0%; transition:width .5s ease; }
+  .gauge-labels{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); }
+  .supply-detail{ margin-top:18px; display:grid; gap:10px; }
+  .supply-row{ display:flex; justify-content:space-between; font-size:13px; padding:8px 0; border-bottom:1px dashed var(--line); }
+  .supply-row .k{ color:var(--muted); }
+  .supply-row .v{ font-family:'IBM Plex Mono', monospace; color:var(--cream); }
+  .eta{ margin-top:14px; font-size:12px; color:var(--muted); line-height:1.6; border-left:2px solid var(--gold-dim); padding-left:12px; }
+
+  /* ledger */
+  .ledger{
+    height:340px; overflow-y:auto; font-family:'IBM Plex Mono', monospace; font-size:12px;
+    display:flex; flex-direction:column-reverse; gap:0;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .ledger::-webkit-scrollbar{ width:6px; }
+  .ledger::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+  .entry{
+    padding:9px 4px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:baseline;
+    color:var(--muted);
+  }
+  .entry .m{ color:var(--gold-dim); flex-shrink:0; width:64px; }
+  .entry .t{ flex:1; color:var(--cream); }
+  .entry.intervene{ color:var(--brick); }
+  .entry.intervene .t{ color:var(--brick); font-weight:600; }
+  .entry.intervene .m{ color:var(--brick); }
+  .entry.milestone .t{ color:var(--green); font-weight:600; }
+  .entry.milestone .m{ color:var(--green); }
+  @media (prefers-reduced-motion: no-preference){
+    .entry.new{ animation: slideIn .35s ease; }
+  }
+  @keyframes slideIn{ from{ opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
+
+  footer{
+    margin-top:26px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:11px; color:var(--muted); line-height:1.7;
+  }
+  footer b{ color:var(--gold-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="brand-eyebrow">Delper Ecosystem — DPR Token</p>
+      <h1>Perpetual Ledger Simulation</h1>
+      <p class="sub">A running model of DPR's price floor, liquidity pool, and progressive token release — ticking forward one platform-month at a time, indefinitely.</p>
+    </div>
+    <div class="status">
+      <span class="dot live" id="statusDot"></span>
+      <span id="statusText">RUNNING</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button id="playBtn">⏸ Pause</button>
+    <button id="resetBtn">↺ Reset</button>
+    <div class="spacer"></div>
+    <div class="speed-group" id="speedGroup">
+      <button data-speed="0.5">0.5×</button>
+      <button data-speed="1" class="active">1×</button>
+      <button data-speed="2">2×</button>
+      <button data-speed="4">4×</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="label">Platform Month</div>
+      <div class="value" id="kpiMonth">000000</div>
+      <div class="foot" id="kpiMonthFoot">since launch</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Token Price</div>
+      <div class="value gold" id="kpiPrice">$21.40</div>
+      <div class="foot" id="kpiPriceFoot">floor $21.40</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Liquidity Pool</div>
+      <div class="value" id="kpiPool">$5,000,000</div>
+      <div class="foot" id="kpiPoolFoot">funded by 0.5% + 0.5% tax</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Circulating Supply</div>
+      <div class="value green" id="kpiCirc">233,645</div>
+      <div class="foot" id="kpiCircFoot">of 480B cap</div>
+    </div>
+  </div>
+
+  <div class="chart-panel">
+    <div class="chart-head">
+      <div class="chart-title">Price vs. floor</div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--green)"></span>Price</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--gold); opacity:.8"></span>Floor · $21.40</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--brick)"></span>Intervention</span>
+      </div>
+    </div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Supply release</h2>
+      <div class="gauge-track"><div class="gauge-fill" id="gaugeFill"></div></div>
+      <div class="gauge-labels">
+        <span id="gaugePct">0.0000%</span>
+        <span>480,000,000,000 cap</span>
+      </div>
+      <div class="supply-detail">
+        <div class="supply-row"><span class="k">Reserved (collateral-only)</span><span class="v">1.5T</span></div>
+        <div class="supply-row"><span class="k">Total supply</span><span class="v">1.98T</span></div>
+        <div class="supply-row"><span class="k">Seed release</span><span class="v">233,645 DPR</span></div>
+        <div class="supply-row"><span class="k">Released this run</span><span class="v" id="releasedRun">0 DPR</span></div>
+      </div>
+      <div class="eta" id="etaNote">Calculating pace of release…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Event ledger</h2>
+      <div class="ledger" id="ledger"></div>
+    </div>
+  </div>
+
+  <footer>
+    Illustrative simulation only — figures are synthetic and generated live in-browser to demonstrate the mechanism described in the DPR Tokenomics Whitepaper (Section 6). <b>Price floor is defended manually by GK Bharta</b>, not algorithmically; each intervention below is a simulated instance of that discretionary action. Nothing here reflects real transaction data.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Constants (from whitepaper) ----------
+  const FLOOR = 21.4;
+  const CAP = 480e9;
+  const SEED_POOL = 5_000_000;
+  const SEED_CIRC = SEED_POOL / FLOOR; // 233,644.86
+  const MEAN_ANCHOR = FLOOR * 1.35;
+
+  // ---------- State ----------
+  let state = null;
+  let running = true;
+  let speed = 1;
+  let timerId = null;
+  const BASE_INTERVAL = 1100; // ms per month at 1x
+
+  function freshState(){
+    return {
+      month: 0,
+      price: FLOOR,
+      pool: SEED_POOL,
+      circulating: SEED_CIRC,
+      releasedThisRun: 0,
+      history: [{ month: 0, price: FLOOR, intervened: false }],
+      milestoneLogged: {}
+    };
+  }
+
+  // ---------- Formatters ----------
+  const fmtUSD = (n) => {
+    if (Math.abs(n) >= 1e12) return "$" + (n/1e12).toFixed(2) + "T";
+    if (Math.abs(n) >= 1e9)  return "$" + (n/1e9).toFixed(2) + "B";
+    if (Math.abs(n) >= 1e6)  return "$" + (n/1e6).toFixed(2) + "M";
+    return "$" + n.toLocaleString(undefined, {maximumFractionDigits:0});
+  };
+  const fmtUSDFull = (n) => "$" + n.toLocaleString(undefined, {maximumFractionDigits:0});
+  const fmtTok = (n) => {
+    if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(3) + "B";
+    if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(3) + "M";
+    if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(2) + "K";
+    return n.toFixed(0);
+  };
+  const fmtMonth = (m) => String(m).padStart(6,"0");
+
+  // ---------- DOM refs ----------
+  const el = {
+    month: document.getElementById("kpiMonth"),
+    monthFoot: document.getElementById("kpiMonthFoot"),
+    price: document.getElementById("kpiPrice"),
+    priceFoot: document.getElementById("kpiPriceFoot"),
+    pool: document.getElementById("kpiPool"),
+    poolFoot: document.getElementById("kpiPoolFoot"),
+    circ: document.getElementById("kpiCirc"),
+    circFoot: document.getElementById("kpiCircFoot"),
+    gaugeFill: document.getElementById("gaugeFill"),
+    gaugePct: document.getElementById("gaugePct"),
+    releasedRun: document.getElementById("releasedRun"),
+    eta: document.getElementById("etaNote"),
+    ledger: document.getElementById("ledger"),
+    playBtn: document.getElementById("playBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    statusDot: document.getElementById("statusDot"),
+    statusText: document.getElementById("statusText"),
+    speedGroup: document.getElementById("speedGroup"),
+  };
+
+  // ---------- Canvas chart ----------
+  const canvas = document.getElementById("chart");
+  const ctx = canvas.getContext("2d");
+  function sizeCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, rect.width * dpr);
+    canvas.height = Math.max(1, 260 * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener("resize", () => { sizeCanvas(); draw(); });
+
+  function draw(){
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width, H = 260;
+    ctx.clearRect(0,0,W,H);
+
+    const WINDOW = 90;
+    const hist = state.history.slice(-WINDOW);
+    if (hist.length < 2){ return; }
+
+    const prices = hist.map(p => p.price);
+    let maxP = Math.max(...prices, FLOOR * 1.05);
+    let minP = Math.min(...prices, FLOOR * 0.98);
+    const pad = (maxP - minP) * 0.15 || 1;
+    maxP += pad; minP -= pad;
+
+    const padL = 4, padR = 4, padT = 10, padB = 22;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const xFor = (i) => padL + (i/(hist.length-1)) * plotW;
+    const yFor = (p) => padT + (1 - (p - minP)/(maxP - minP)) * plotH;
+
+    // floor line (dashed gold)
+    ctx.save();
+    ctx.strokeStyle = "rgba(201,161,93,0.7)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5,4]);
+    const fy = yFor(FLOOR);
+    ctx.beginPath();
+    ctx.moveTo(padL, fy);
+    ctx.lineTo(W - padR, fy);
+    ctx.stroke();
+    ctx.restore();
+
+    // floor label
+    ctx.fillStyle = "#C9A15D";
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("FLOOR $" + FLOOR.toFixed(2), padL + 2, fy - 3);
+
+    // fill under price line
+    ctx.beginPath();
+    ctx.moveTo(xFor(0), yFor(hist[0].price));
+    hist.forEach((p,i) => ctx.lineTo(xFor(i), yFor(p.price)));
+    ctx.lineTo(xFor(hist.length-1), padT + plotH);
+    ctx.lineTo(xFor(0), padT + plotH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, padT, 0, padT+plotH);
+    grad.addColorStop(0, "rgba(95,184,143,0.22)");
+    grad.addColorStop(1, "rgba(95,184,143,0.0)");
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // price line
+    ctx.beginPath();
+    ctx.strokeStyle = "#5FB88F";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    hist.forEach((p,i) => {
+      const x = xFor(i), y = yFor(p.price);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // intervention markers
+    hist.forEach((p,i) => {
+      if (p.intervened){
+        const x = xFor(i), y = yFor(p.price);
+        ctx.beginPath();
+        ctx.fillStyle = "#C4563F";
+        ctx.arc(x, y, 3.5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(196,86,63,0.4)";
+        ctx.lineWidth = 1;
+        ctx.arc(x, y, 7, 0, Math.PI*2);
+        ctx.stroke();
+      }
+    });
+
+    // current price dot
+    const last = hist[hist.length-1];
+    ctx.beginPath();
+    ctx.fillStyle = "#EDE7DC";
+    ctx.arc(xFor(hist.length-1), yFor(last.price), 3, 0, Math.PI*2);
+    ctx.fill();
+
+    // x-axis month labels (first / last)
+    ctx.fillStyle = "#8B93A7";
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    ctx.fillText("M" + hist[0].month, padL, H - padB + 6);
+    ctx.textAlign = "right";
+    ctx.fillText("M" + last.month, W - padR, H - padB + 6);
+  }
+
+  // ---------- Ledger ----------
+  function log(month, text, cls){
+    const entry = document.createElement("div");
+    entry.className = "entry new" + (cls ? " " + cls : "");
+    entry.innerHTML = `<span class="m">M${fmtMonth(month)}</span><span class="t">${text}</span>`;
+    el.ledger.appendChild(entry);
+    // cap DOM size
+    while (el.ledger.children.length > 160){
+      el.ledger.removeChild(el.ledger.firstChild);
+    }
+    el.ledger.scrollTop = el.ledger.scrollHeight;
+  }
+
+  // ---------- Simulation tick ----------
+  function tick(){
+    const s = state;
+    s.month += 1;
+
+    const growth = 1 + Math.min(s.month * 0.0006, 2);
+    const buyTok = 1.2e9 * (0.7 + Math.random()*0.6) * growth;
+    const sellTok = 1.1e9 * (0.7 + Math.random()*0.6) * growth;
+    const netTok = buyTok - sellTok;
+    const totalTok = buyTok + sellTok;
+
+    const priceBefore = s.price;
+    const buyUSD = buyTok * priceBefore;
+    const sellUSD = sellTok * priceBefore;
+    const buyTax = buyUSD * 0.005;
+    const sellTax = sellUSD * 0.005;
+    const taxTotal = buyTax + sellTax;
+    s.pool += taxTotal;
+
+    // price move
+    let pct = (netTok/totalTok) * 0.10 + (Math.random()-0.5) * 0.05;
+    pct += ((MEAN_ANCHOR - priceBefore) / priceBefore) * 0.05;
+    let newPrice = priceBefore * (1 + pct);
+    let intervened = false;
+    if (newPrice <= FLOOR){
+      newPrice = FLOOR + Math.random()*0.12;
+      intervened = true;
+    }
+    s.price = newPrice;
+
+    // supply release
+    const targetCirc = Math.min(s.pool / FLOOR, CAP);
+    let released = 0;
+    if (targetCirc > s.circulating){
+      released = targetCirc - s.circulating;
+      s.circulating = targetCirc;
+      s.releasedThisRun += released;
+    }
+
+    s.history.push({ month: s.month, price: s.price, intervened });
+    if (s.history.length > 6000) s.history.shift();
+
+    // logging
+    if (intervened){
+      log(s.month, `⚠ Floor tested — <b>manual intervention</b> by GK Bharta · price held at $${FLOOR.toFixed(2)}`, "intervene");
+    } else {
+      const dir = netTok >= 0 ? "net buy pressure" : "net sell pressure";
+      log(s.month, `Tax +${fmtUSD(taxTotal)} → pool · released +${fmtTok(released)} DPR · ${dir}`);
+    }
+
+    // milestones
+    const pctCap = (s.circulating/CAP)*100;
+    [0.001, 0.01, 0.1, 1, 5, 10, 25, 50, 100].forEach(m => {
+      if (pctCap >= m && !s.milestoneLogged[m]){
+        s.milestoneLogged[m] = true;
+        log(s.month, `◆ Milestone — circulating supply passed ${m}% of the 480B cap`, "milestone");
+      }
+    });
+
+    render();
+  }
+
+  // ---------- Render ----------
+  function render(){
+    const s = state;
+    el.month.textContent = fmtMonth(s.month);
+    el.monthFoot.textContent = s.month === 0 ? "since launch" : (s.month/12).toFixed(1) + " yrs since launch";
+
+    el.price.textContent = "$" + s.price.toFixed(2);
+    const last = s.history[s.history.length-1];
+    el.priceFoot.textContent = last && last.intervened ? "floor defended this tick" : "floor $" + FLOOR.toFixed(2);
+    el.price.className = "value " + (last && last.intervened ? "" : "gold");
+
+    el.pool.textContent = fmtUSDFull(s.pool);
+    el.poolFoot.textContent = "funded by 0.5% + 0.5% tax";
+
+    el.circ.textContent = s.circulating.toLocaleString(undefined,{maximumFractionDigits:0});
+    el.circFoot.textContent = "of 480,000,000,000 cap";
+
+    const pctCap = (s.circulating/CAP)*100;
+    el.gaugeFill.style.width = Math.min(100, Math.max(pctCap, 0.05)) + "%";
+    el.gaugePct.textContent = pctCap.toFixed(6) + "%";
+    el.releasedRun.textContent = fmtTok(s.releasedThisRun) + " DPR";
+
+    if (s.month >= 6){
+      const perMonth = s.releasedThisRun / s.month;
+      const remaining = CAP - s.circulating;
+      const monthsLeft = perMonth > 0 ? remaining / perMonth : Infinity;
+      const yearsLeft = monthsLeft / 12;
+      el.eta.textContent = isFinite(yearsLeft)
+        ? `At the current release pace (~${fmtTok(perMonth)} DPR/month), the full 480B cap would take roughly ${yearsLeft >= 1000 ? yearsLeft.toExponential(1) : yearsLeft.toLocaleString(undefined,{maximumFractionDigits:0})} years to reach.`
+        : `Release pace is currently flat — no new tokens entering circulation.`;
+    }
+
+    draw();
+  }
+
+  // ---------- Controls ----------
+  function scheduleNext(){
+    clearTimeout(timerId);
+    if (!running) return;
+    timerId = setTimeout(() => { tick(); scheduleNext(); }, BASE_INTERVAL / speed);
+  }
+
+  el.playBtn.addEventListener("click", () => {
+    running = !running;
+    el.playBtn.textContent = running ? "⏸ Pause" : "▶ Resume";
+    el.statusText.textContent = running ? "RUNNING" : "PAUSED";
+    el.statusDot.classList.toggle("live", running);
+    el.statusDot.classList.toggle("paused", !running);
+    if (running) scheduleNext();
+    else clearTimeout(timerId);
+  });
+
+  el.resetBtn.addEventListener("click", () => {
+    el.ledger.innerHTML = "";
+    state = freshState();
+    log(0, "Simulation reset — pool seeded with $5,000,000, releasing 233,645 DPR at the $21.40 floor.");
+    render();
+    if (!running){
+      running = true;
+      el.playBtn.textContent = "⏸ Pause";
+      el.statusText.textContent = "RUNNING";
+      el.statusDot.classList.add("live");
+      el.statusDot.classList.remove("paused");
+    }
+    scheduleNext();
+  });
+
+  el.speedGroup.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-speed]");
+    if (!btn) return;
+    speed = parseFloat(btn.dataset.speed);
+    [...el.speedGroup.children].forEach(b => b.classList.toggle("active", b === btn));
+    if (running) scheduleNext();
+  });
+
+  // ---------- Init ----------
+  function init(){
+    sizeCanvas();
+    state = freshState();
+    log(0, "Simulation started — pool seeded with $5,000,000, releasing 233,645 DPR at the $21.40 floor.");
+    render();
+    scheduleNext();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
