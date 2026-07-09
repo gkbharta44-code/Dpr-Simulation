@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DPR Ledger — Perpetual Simulation (v2: Market-Cap Pricing)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0A0F1C;
+    --panel:#111A2C;
+    --panel-2:#0D1524;
+    --line:#25324A;
+    --gold:#C9A15D;
+    --gold-dim:#8A7142;
+    --cream:#EDE7DC;
+    --muted:#8B93A7;
+    --green:#5FB88F;
+    --brick:#C4563F;
+    --shadow: 0 20px 60px -20px rgba(0,0,0,0.6);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(201,161,93,0.07), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(95,184,143,0.05), transparent 55%),
+      var(--ink);
+    color:var(--cream);
+    font-family:'Inter', sans-serif;
+    min-height:100vh;
+    padding: clamp(14px, 3vw, 34px);
+  }
+  .wrap{ max-width:1180px; margin:0 auto; }
+
+  /* ---------- Header ---------- */
+  header{
+    display:flex; justify-content:space-between; align-items:flex-end; gap:16px;
+    flex-wrap:wrap;
+    border-bottom:1px solid var(--line);
+    padding-bottom:18px; margin-bottom:22px;
+  }
+  .brand-eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:11px; letter-spacing:.18em; text-transform:uppercase;
+    color:var(--gold); margin:0 0 8px 0;
+  }
+  h1{
+    font-family:'Fraunces', serif; font-weight:600; font-optical-sizing:auto;
+    font-size:clamp(28px, 4vw, 40px); margin:0; line-height:1.05; letter-spacing:-.01em;
+  }
+  .sub{ font-size:13px; color:var(--muted); margin-top:8px; max-width:520px; line-height:1.5;}
+  .status{
+    display:flex; align-items:center; gap:8px;
+    font-family:'IBM Plex Mono', monospace; font-size:12px; color:var(--muted);
+  }
+  .dot{ width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 3px rgba(95,184,143,0.15); }
+  .dot.paused{ background:var(--muted); box-shadow:none; }
+  @media (prefers-reduced-motion: no-preference){
+    .dot.live{ animation: pulse 1.6s ease-in-out infinite; }
+  }
+  @keyframes pulse{ 0%,100%{opacity:1;} 50%{opacity:.35;} }
+
+  /* ---------- Controls ---------- */
+  .controls{
+    display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:22px;
+  }
+  button{
+    font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:.04em;
+    background:var(--panel); color:var(--cream); border:1px solid var(--line);
+    padding:9px 14px; border-radius:3px; cursor:pointer; transition:border-color .15s, color .15s;
+  }
+  button:hover{ border-color:var(--gold); color:var(--gold); }
+  button:focus-visible{ outline:2px solid var(--gold); outline-offset:2px; }
+  button.active{ background:var(--gold); color:#241A08; border-color:var(--gold); font-weight:600; }
+  .spacer{ flex:1 1 auto; }
+  .speed-group{ display:flex; gap:2px; background:var(--panel-2); padding:3px; border-radius:4px; border:1px solid var(--line); }
+  .speed-group button{ border:none; background:transparent; padding:6px 11px; }
+  .speed-group button.active{ background:var(--gold); color:#241A08; border-radius:2px; }
+
+  /* ---------- KPI strip ---------- */
+  .kpis{
+    display:grid; grid-template-columns: repeat(7, 1fr); gap:1px;
+    background:var(--line); border:1px solid var(--line); border-radius:6px; overflow:hidden;
+    margin-bottom:20px; box-shadow:var(--shadow);
+  }
+  @media (max-width:1080px){ .kpis{ grid-template-columns: repeat(4,1fr); } }
+  @media (max-width:700px){ .kpis{ grid-template-columns: repeat(2,1fr); } }
+  .kpi{ background:var(--panel); padding:16px 14px; min-width:0; }
+  .kpi .label{ font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:8px;}
+  .kpi .value{
+    font-family:'IBM Plex Mono', monospace; font-size:clamp(15px,1.8vw,24px); font-weight:600;
+    color:var(--cream); font-variant-numeric: tabular-nums;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; display:block;
+  }
+  .kpi .value.gold{ color:var(--gold); }
+  .kpi .value.green{ color:var(--green); }
+  .kpi .foot{ font-size:11px; color:var(--muted); margin-top:6px; font-family:'IBM Plex Mono', monospace;}
+
+  /* ---------- Chart panel ---------- */
+  .chart-panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:20px 18px 12px; margin-bottom:20px; box-shadow:var(--shadow);
+  }
+  .chart-head{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; flex-wrap:wrap; gap:6px;}
+  .chart-title{ font-family:'Fraunces', serif; font-size:16px; font-weight:500; color:var(--cream);}
+  .chart-legend{ display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); }
+  .legend-item{ display:flex; align-items:center; gap:6px;}
+  .swatch{ width:14px; height:2px; display:inline-block;}
+  canvas{ width:100%; height:260px; display:block; }
+
+  /* ---------- Two column: supply + ledger ---------- */
+  .grid2{ display:grid; grid-template-columns: 1fr 1.3fr; gap:20px; align-items:stretch; }
+  @media (max-width:760px){ .grid2{ grid-template-columns:1fr; } }
+
+  .panel{
+    background:var(--panel); border:1px solid var(--line); border-radius:6px;
+    padding:20px 18px; box-shadow:var(--shadow);
+  }
+  .panel h2{
+    font-family:'Fraunces', serif; font-size:16px; font-weight:500; margin:0 0 14px 0; color:var(--cream);
+  }
+
+  /* supply gauge */
+  .gauge-track{
+    height:10px; background:var(--panel-2); border-radius:5px; overflow:hidden; border:1px solid var(--line); margin:12px 0 8px;
+  }
+  .gauge-fill{ height:100%; background:linear-gradient(90deg, var(--gold-dim), var(--gold)); width:0%; transition:width .5s ease; }
+  .gauge-labels{ display:flex; justify-content:space-between; font-family:'IBM Plex Mono', monospace; font-size:11px; color:var(--muted); }
+  .supply-detail{ margin-top:18px; display:grid; gap:10px; }
+  .supply-row{ display:flex; justify-content:space-between; font-size:13px; padding:8px 0; border-bottom:1px dashed var(--line); }
+  .supply-row .k{ color:var(--muted); }
+  .supply-row .v{ font-family:'IBM Plex Mono', monospace; color:var(--cream); }
+  .eta{ margin-top:14px; font-size:12px; color:var(--muted); line-height:1.6; border-left:2px solid var(--gold-dim); padding-left:12px; }
+
+  /* hold table */
+  .hold-panel{ margin-top:20px; }
+  .hold-scroll{ overflow-x:auto; }
+  table.hold{ width:100%; border-collapse:collapse; font-size:12.5px; min-width:640px; }
+  table.hold th{
+    font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.08em; text-transform:uppercase;
+    color:var(--muted); text-align:right; padding:8px 10px; border-bottom:1px solid var(--line); font-weight:500;
+  }
+  table.hold th:first-child, table.hold td:first-child{ text-align:left; }
+  table.hold td{
+    font-family:'IBM Plex Mono', monospace; text-align:right; padding:9px 10px; border-bottom:1px solid var(--line);
+    color:var(--cream); font-variant-numeric: tabular-nums;
+  }
+  table.hold td.name{ font-family:'Inter', sans-serif; color:var(--cream); }
+  table.hold tr.total td{ border-top:1px solid var(--gold-dim); border-bottom:none; font-weight:600; color:var(--gold); padding-top:12px; }
+  table.hold tr.balance td{ color:var(--green); font-weight:600; }
+  table.hold tr.users td.name{ color:var(--muted); font-style:italic; }
+  .hold-note{ font-size:11px; color:var(--muted); margin-top:10px; line-height:1.6; }
+
+  /* ledger */
+  .ledger{
+    height:340px; overflow-y:auto; font-family:'IBM Plex Mono', monospace; font-size:12px;
+    display:flex; flex-direction:column-reverse; gap:0;
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .ledger::-webkit-scrollbar{ width:6px; }
+  .ledger::-webkit-scrollbar-thumb{ background:var(--line); border-radius:3px; }
+  .entry{
+    padding:9px 4px; border-bottom:1px solid var(--line); display:flex; gap:10px; align-items:baseline;
+    color:var(--muted);
+  }
+  .entry .m{ color:var(--gold-dim); flex-shrink:0; width:64px; }
+  .entry .t{ flex:1; color:var(--cream); }
+  .entry.intervene{ color:var(--brick); }
+  .entry.intervene .t{ color:var(--brick); font-weight:600; }
+  .entry.intervene .m{ color:var(--brick); }
+  .entry.milestone .t{ color:var(--green); font-weight:600; }
+  .entry.milestone .m{ color:var(--green); }
+  .entry.strained{ background:rgba(196,86,63,0.08); }
+  .entry.strained .t{ text-decoration: underline; text-decoration-color: rgba(196,86,63,0.5); }
+  .entry.restock{ color:var(--gold); }
+  .entry.restock .t{ color:var(--gold); font-weight:600; }
+  .entry.restock .m{ color:var(--gold); }
+  @media (prefers-reduced-motion: no-preference){
+    .entry.new{ animation: slideIn .35s ease; }
+  }
+  @keyframes slideIn{ from{ opacity:0; transform:translateY(-4px);} to{opacity:1; transform:translateY(0);} }
+
+  footer{
+    margin-top:26px; padding-top:16px; border-top:1px solid var(--line);
+    font-size:11px; color:var(--muted); line-height:1.7;
+  }
+  footer b{ color:var(--gold-dim); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div>
+      <p class="brand-eyebrow">Delper Ecosystem — DPR Token · v2.0</p>
+      <h1>Perpetual Ledger Simulation</h1>
+      <p class="sub">A running model of DPR's market-cap-derived price, USD 21.4 floor, liquidity pool, and progressive release of a locked 498B token cap — driven by 70% capture of the USD 140T global commodity &amp; derivatives market — ticking forward one platform-month at a time, indefinitely.</p>
+    </div>
+    <div class="status">
+      <span class="dot live" id="statusDot"></span>
+      <span id="statusText">RUNNING</span>
+    </div>
+  </header>
+
+  <div class="controls">
+    <button id="playBtn">⏸ Pause</button>
+    <button id="resetBtn">↺ Reset</button>
+    <div class="spacer"></div>
+    <div class="speed-group" id="speedGroup">
+      <button data-speed="0.5">0.5×</button>
+      <button data-speed="1" class="active">1×</button>
+      <button data-speed="2">2×</button>
+      <button data-speed="4">4×</button>
+    </div>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi">
+      <div class="label">Platform Month</div>
+      <div class="value" id="kpiMonth">000000</div>
+      <div class="foot" id="kpiMonthFoot">since launch</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Token Price (Market)</div>
+      <div class="value gold" id="kpiPrice">$21.40</div>
+      <div class="foot" id="kpiPriceFoot">floor $21.40</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Market-Cap Anchor</div>
+      <div class="value" id="kpiAnchor">$52.05</div>
+      <div class="foot" id="kpiAnchorFoot">ecosystem value ÷ 1.998T supply</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Liquidity Pool</div>
+      <div class="value" id="kpiPool">$5,000,000</div>
+      <div class="foot" id="kpiPoolFoot">tax + above-floor premium</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Circulating Supply</div>
+      <div class="value green" id="kpiCirc">233,645</div>
+      <div class="foot" id="kpiCircFoot">of 498B locked cap</div>
+    </div>
+    <div class="kpi">
+      <div class="label">GK Bharta Reserve</div>
+      <div class="value" id="kpiReserve" style="color:var(--brick)">$0</div>
+      <div class="foot" id="kpiReserveFoot">funds floor defense</div>
+    </div>
+    <div class="kpi">
+      <div class="label">GK Bharta 1.5T Tokens — Value</div>
+      <div class="value gold" id="kpiReservedValue">$0</div>
+      <div class="foot" id="kpiReservedValueFoot">1,500,000,000,000 × market price</div>
+    </div>
+    <div class="kpi">
+      <div class="label">Hold Accommodation</div>
+      <div class="value" id="kpiAccom">100%</div>
+      <div class="foot" id="kpiAccomFoot">of stated hold periods honored</div>
+    </div>
+  </div>
+
+  <div class="chart-panel">
+    <div class="chart-head">
+      <div class="chart-title">Price vs. floor</div>
+      <div class="chart-legend">
+        <span class="legend-item"><span class="swatch" style="background:var(--green)"></span>Price</span>
+        <span class="legend-item"><span class="swatch" style="background:#8FA6D6; opacity:.8"></span>Market-cap anchor</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--gold); opacity:.8"></span>Floor · $21.40</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--brick)"></span>Reserve-funded intervention</span>
+        <span class="legend-item"><span class="swatch" style="background:var(--gold)"></span>Channel/commodity restock</span>
+      </div>
+    </div>
+    <canvas id="chart"></canvas>
+  </div>
+
+  <div class="grid2">
+    <div class="panel">
+      <h2>Supply release</h2>
+      <div class="gauge-track"><div class="gauge-fill" id="gaugeFill"></div></div>
+      <div class="gauge-labels">
+        <span id="gaugePct">0.0000%</span>
+        <span>498,000,000,000 cap (locked)</span>
+      </div>
+      <div class="supply-detail">
+        <div class="supply-row"><span class="k">Reserved (collateral-only, GK Bharta)</span><span class="v">1.5T</span></div>
+        <div class="supply-row"><span class="k">Reserved — live value</span><span class="v" id="reservedLiveValue">$0</span></div>
+        <div class="supply-row"><span class="k">Total supply</span><span class="v">1.998T</span></div>
+        <div class="supply-row"><span class="k">Seed release</span><span class="v">233,645 DPR</span></div>
+        <div class="supply-row"><span class="k">Released this run</span><span class="v" id="releasedRun">0 DPR</span></div>
+      </div>
+      <div class="eta" id="etaNote">Calculating pace of release…</div>
+    </div>
+
+    <div class="panel">
+      <h2>Event ledger</h2>
+      <div class="ledger" id="ledger"></div>
+    </div>
+  </div>
+
+  <div class="panel hold-panel">
+    <h2>Token hold — live (with accommodation)</h2>
+    <div class="hold-scroll">
+      <table class="hold">
+        <thead>
+          <tr>
+            <th>Party</th>
+            <th>Share</th>
+            <th>Stated Hold</th>
+            <th>Effective Hold</th>
+            <th>Hold Value (USD)</th>
+            <th>Tokens Needed</th>
+            <th>% of Cap</th>
+          </tr>
+        </thead>
+        <tbody id="holdBody">
+          <!-- rows injected live -->
+        </tbody>
+      </table>
+    </div>
+    <div class="hold-note">
+      Channel shares (consumer supply chain) hold 6 months of turnover in advance; users hold 1 month; commodity &amp; derivative trading participants hold 1 month against DPR-settled commodity volume (70% of $140T/yr → $98T/yr). Token counts recalculate every tick against the <b>live simulated market price</b>. Whenever the combined full-hold requirement would exceed the locked 498B cap, every party's hold period is scaled down by the same <b>accommodation factor</b> — shown in the KPI strip above — until price recovers toward its market-cap anchor.
+    </div>
+  </div>
+
+  <footer>
+    Illustrative simulation only — figures are synthetic and generated live in-browser to demonstrate the mechanism described in the DPR Tokenomics Whitepaper v2.0 (Sections 6, 7 &amp; 10). Token value is anchored to ecosystem market capitalization — dominated by a targeted 70% capture of the ~$140T global commodity &amp; derivative trading market — divided by the 1.998T total token supply, with the USD 21.4 floor as an absolute downside backstop. <b>Price floor is defended manually by GK Bharta</b>, drawing on the GK Bharta Reserve, which receives only the floor-equivalent share of purchase proceeds; the above-floor premium on every purchase now flows to the liquidity pool instead, alongside the 0.5%+0.5% tax. Nothing here reflects real transaction data.
+  </footer>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ---------- Constants (from whitepaper v2) ----------
+  const FLOOR = 21.4;                    // hard floor — never breached
+  const CAP = 498e9;                     // locked circulating cap (was 480B)
+  const RESERVED = 1_500_000_000_000;    // GK Bharta collateral-only tokens
+  const TOTAL_SUPPLY = CAP + RESERVED;   // 1.998T — market-cap price divides by this
+  const SEED_POOL = 5_000_000;
+  const SEED_CIRC = SEED_POOL / FLOOR; // 233,644.86
+
+  // ---------- Ecosystem transaction value (market-cap basis) ----------
+  const COMMODITY_ANNUAL_MARKET = 140e12;      // global commodity + derivatives, gross nominal
+  const COMMODITY_CAPTURE_PCT = 0.70;          // Delper target capture
+  const COMMODITY_DPR_ANNUAL = COMMODITY_ANNUAL_MARKET * COMMODITY_CAPTURE_PCT; // $98T/yr
+
+  // ---------- Hold table constants ----------
+  const MRP = 83.33;
+  const USER_COUNT = 6_000_000_000;
+  const MONTHLY_TURNOVER = MRP * USER_COUNT; // $499,980,000,000
+  const CONSUMER_ANNUAL = MONTHLY_TURNOVER * 12; // ~$6.00T/yr
+  const COMMODITY_MONTHLY = COMMODITY_DPR_ANNUAL / 12; // ~$8.167T/month
+
+  function marketCapPrice(growth){
+    const totalAnnual = (COMMODITY_DPR_ANNUAL + CONSUMER_ANNUAL) * growth;
+    return Math.max(totalAnnual / TOTAL_SUPPLY, FLOOR);
+  }
+
+  const CHANNEL = [
+    { name: "Manufacturer", pct: 0.40 },
+    { name: "Distributor",  pct: 0.25 },
+    { name: "Retailer",     pct: 0.22 },
+    { name: "Wholesaler",   pct: 0.08 },
+    { name: "Stockist",     pct: 0.05 },
+  ];
+  const HOLD_MONTHS_CHANNEL = 6;
+  const HOLD_MONTHS_USERS = 1;
+  const HOLD_MONTHS_COMMODITY = 1;
+  const CHANNEL_TOTAL_USD = MONTHLY_TURNOVER * HOLD_MONTHS_CHANNEL; // 6-month channel hold value
+  const USER_HOLD_USD = MONTHLY_TURNOVER * HOLD_MONTHS_USERS;
+  const COMMODITY_HOLD_USD = COMMODITY_MONTHLY * HOLD_MONTHS_COMMODITY;
+  const FULL_HOLD_USD = CHANNEL_TOTAL_USD + USER_HOLD_USD + COMMODITY_HOLD_USD;
+
+  // ---------- State ----------
+  let state = null;
+  let running = true;
+  let speed = 1;
+  let timerId = null;
+  const BASE_INTERVAL = 1100; // ms per month at 1x
+
+  function freshState(){
+    return {
+      month: 0,
+      price: FLOOR,
+      pool: SEED_POOL,
+      reserve: 0,
+      circulating: SEED_CIRC,
+      releasedThisRun: 0,
+      history: [{ month: 0, price: FLOOR, anchor: marketCapPrice(1), intervened: false }],
+      milestoneLogged: {},
+      accomFactor: 1
+    };
+  }
+
+  // ---------- Formatters ----------
+  const fmtUSD = (n) => {
+    if (Math.abs(n) >= 1e12) return "$" + (n/1e12).toFixed(2) + "T";
+    if (Math.abs(n) >= 1e9)  return "$" + (n/1e9).toFixed(2) + "B";
+    if (Math.abs(n) >= 1e6)  return "$" + (n/1e6).toFixed(2) + "M";
+    return "$" + n.toLocaleString(undefined, {maximumFractionDigits:0});
+  };
+  const fmtUSDFull = (n) => "$" + n.toLocaleString(undefined, {maximumFractionDigits:0});
+  const fmtTok = (n) => {
+    if (Math.abs(n) >= 1e9) return (n/1e9).toFixed(3) + "B";
+    if (Math.abs(n) >= 1e6) return (n/1e6).toFixed(3) + "M";
+    if (Math.abs(n) >= 1e3) return (n/1e3).toFixed(2) + "K";
+    return n.toFixed(0);
+  };
+  const fmtMonth = (m) => String(m).padStart(6,"0");
+
+  // ---------- DOM refs ----------
+  const el = {
+    month: document.getElementById("kpiMonth"),
+    monthFoot: document.getElementById("kpiMonthFoot"),
+    price: document.getElementById("kpiPrice"),
+    priceFoot: document.getElementById("kpiPriceFoot"),
+    pool: document.getElementById("kpiPool"),
+    poolFoot: document.getElementById("kpiPoolFoot"),
+    circ: document.getElementById("kpiCirc"),
+    circFoot: document.getElementById("kpiCircFoot"),
+    reserve: document.getElementById("kpiReserve"),
+    reserveFoot: document.getElementById("kpiReserveFoot"),
+    anchor: document.getElementById("kpiAnchor"),
+    anchorFoot: document.getElementById("kpiAnchorFoot"),
+    reservedValue: document.getElementById("kpiReservedValue"),
+    reservedValueFoot: document.getElementById("kpiReservedValueFoot"),
+    accom: document.getElementById("kpiAccom"),
+    accomFoot: document.getElementById("kpiAccomFoot"),
+    reservedLiveValue: document.getElementById("reservedLiveValue"),
+    gaugeFill: document.getElementById("gaugeFill"),
+    gaugePct: document.getElementById("gaugePct"),
+    releasedRun: document.getElementById("releasedRun"),
+    eta: document.getElementById("etaNote"),
+    ledger: document.getElementById("ledger"),
+    holdBody: document.getElementById("holdBody"),
+    playBtn: document.getElementById("playBtn"),
+    resetBtn: document.getElementById("resetBtn"),
+    statusDot: document.getElementById("statusDot"),
+    statusText: document.getElementById("statusText"),
+    speedGroup: document.getElementById("speedGroup"),
+  };
+
+  // ---------- Canvas chart ----------
+  const canvas = document.getElementById("chart");
+  const ctx = canvas.getContext("2d");
+  function sizeCanvas(){
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, rect.width * dpr);
+    canvas.height = Math.max(1, 260 * dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener("resize", () => { sizeCanvas(); draw(); });
+
+  function draw(){
+    const rect = canvas.getBoundingClientRect();
+    const W = rect.width, H = 260;
+    ctx.clearRect(0,0,W,H);
+
+    const WINDOW = 90;
+    const hist = state.history.slice(-WINDOW);
+    if (hist.length < 2){ return; }
+
+    const prices = hist.map(p => p.price);
+    const anchors = hist.map(p => p.anchor || FLOOR);
+    let maxP = Math.max(...prices, ...anchors, FLOOR * 1.05);
+    let minP = Math.min(...prices, FLOOR * 0.98);
+    const pad = (maxP - minP) * 0.15 || 1;
+    maxP += pad; minP -= pad;
+
+    const padL = 4, padR = 4, padT = 10, padB = 22;
+    const plotW = W - padL - padR;
+    const plotH = H - padT - padB;
+
+    const xFor = (i) => padL + (i/(hist.length-1)) * plotW;
+    const yFor = (p) => padT + (1 - (p - minP)/(maxP - minP)) * plotH;
+
+    // floor line (dashed gold)
+    ctx.save();
+    ctx.strokeStyle = "rgba(201,161,93,0.7)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5,4]);
+    const fy = yFor(FLOOR);
+    ctx.beginPath();
+    ctx.moveTo(padL, fy);
+    ctx.lineTo(W - padR, fy);
+    ctx.stroke();
+    ctx.restore();
+
+    // floor label
+    ctx.fillStyle = "#C9A15D";
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("FLOOR $" + FLOOR.toFixed(2), padL + 2, fy - 3);
+
+    // market-cap anchor line (dashed blue)
+    ctx.save();
+    ctx.strokeStyle = "rgba(143,166,214,0.65)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([2,3]);
+    ctx.beginPath();
+    hist.forEach((p,i) => {
+      const x = xFor(i), y = yFor(p.anchor || FLOOR);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    ctx.restore();
+
+    // fill under price line
+    ctx.beginPath();
+    ctx.moveTo(xFor(0), yFor(hist[0].price));
+    hist.forEach((p,i) => ctx.lineTo(xFor(i), yFor(p.price)));
+    ctx.lineTo(xFor(hist.length-1), padT + plotH);
+    ctx.lineTo(xFor(0), padT + plotH);
+    ctx.closePath();
+    const grad = ctx.createLinearGradient(0, padT, 0, padT+plotH);
+    grad.addColorStop(0, "rgba(95,184,143,0.22)");
+    grad.addColorStop(1, "rgba(95,184,143,0.0)");
+    ctx.fillStyle = grad;
+    ctx.fill();
+
+    // price line
+    ctx.beginPath();
+    ctx.strokeStyle = "#5FB88F";
+    ctx.lineWidth = 2;
+    ctx.lineJoin = "round";
+    hist.forEach((p,i) => {
+      const x = xFor(i), y = yFor(p.price);
+      if (i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+
+    // intervention markers
+    hist.forEach((p,i) => {
+      if (p.intervened){
+        const x = xFor(i), y = yFor(p.price);
+        ctx.beginPath();
+        ctx.fillStyle = "#C4563F";
+        ctx.arc(x, y, 3.5, 0, Math.PI*2);
+        ctx.fill();
+        ctx.beginPath();
+        ctx.strokeStyle = "rgba(196,86,63,0.4)";
+        ctx.lineWidth = 1;
+        ctx.arc(x, y, 7, 0, Math.PI*2);
+        ctx.stroke();
+      }
+      if (p.restock){
+        const x = xFor(i), y = yFor(p.price);
+        ctx.save();
+        ctx.translate(x, y - 9);
+        ctx.rotate(Math.PI/4);
+        ctx.fillStyle = "#C9A15D";
+        ctx.fillRect(-3, -3, 6, 6);
+        ctx.restore();
+      }
+    });
+
+    // current price dot
+    const last = hist[hist.length-1];
+    ctx.beginPath();
+    ctx.fillStyle = "#EDE7DC";
+    ctx.arc(xFor(hist.length-1), yFor(last.price), 3, 0, Math.PI*2);
+    ctx.fill();
+
+    // x-axis month labels (first / last)
+    ctx.fillStyle = "#8B93A7";
+    ctx.font = "10px 'IBM Plex Mono', monospace";
+    ctx.textBaseline = "top";
+    ctx.textAlign = "left";
+    ctx.fillText("M" + hist[0].month, padL, H - padB + 6);
+    ctx.textAlign = "right";
+    ctx.fillText("M" + last.month, W - padR, H - padB + 6);
+  }
+
+  // ---------- Ledger ----------
+  function log(month, text, cls){
+    const entry = document.createElement("div");
+    entry.className = "entry new" + (cls ? " " + cls : "");
+    entry.innerHTML = `<span class="m">M${fmtMonth(month)}</span><span class="t">${text}</span>`;
+    el.ledger.appendChild(entry);
+    // cap DOM size
+    while (el.ledger.children.length > 160){
+      el.ledger.removeChild(el.ledger.firstChild);
+    }
+    el.ledger.scrollTop = el.ledger.scrollHeight;
+  }
+
+  // ---------- Hold table ----------
+  function holdRow(name, pctLabel, statedMonths, statedUSD, cls){
+    const tr = document.createElement("tr");
+    if (cls) tr.className = cls;
+    tr.dataset.statedUsd = statedUSD;
+    tr.dataset.statedMonths = statedMonths;
+    tr.innerHTML = `
+      <td class="name">${name}</td>
+      <td>${pctLabel}</td>
+      <td>${statedMonths} mo</td>
+      <td class="effmo">—</td>
+      <td class="usd">${fmtUSDFull(statedUSD)}</td>
+      <td class="tok">—</td>
+      <td class="pct">—</td>`;
+    el.holdBody.appendChild(tr);
+    return tr;
+  }
+
+  function buildHoldTable(){
+    el.holdBody.innerHTML = "";
+    CHANNEL.forEach(row => {
+      const monthly = MONTHLY_TURNOVER * row.pct;
+      const holdValue = monthly * HOLD_MONTHS_CHANNEL;
+      holdRow(row.name, (row.pct*100).toFixed(0) + "%", HOLD_MONTHS_CHANNEL, holdValue, "channel");
+    });
+
+    holdRow("Channel total", "100%", HOLD_MONTHS_CHANNEL, CHANNEL_TOTAL_USD, "total");
+    holdRow("Users (6B, aggregate)", "—", HOLD_MONTHS_USERS, USER_HOLD_USD, "users");
+    holdRow("Commodity &amp; derivative traders", "—", HOLD_MONTHS_COMMODITY, COMMODITY_HOLD_USD, "commodity");
+
+    const trCommitted = holdRow("Total stated hold (full, unscaled)", "—", "6 / 1 / 1", FULL_HOLD_USD, "total");
+    trCommitted.dataset.summaryRow = "1";
+    trCommitted.querySelector(".effmo").textContent = "—";
+
+    const trBalance = document.createElement("tr");
+    trBalance.className = "balance";
+    trBalance.innerHTML = `
+      <td class="name">Balance — release on need basis</td>
+      <td>—</td>
+      <td>—</td>
+      <td>—</td>
+      <td class="balval">—</td>
+      <td class="tok">—</td>
+      <td class="pct">—</td>`;
+    el.holdBody.appendChild(trBalance);
+  }
+
+  function renderHoldTable(){
+    // 1. Compute accommodation factor: can all stated holds fit within CAP at current price?
+    const fullHoldTokens = FULL_HOLD_USD / state.price;
+    const accomFactor = Math.min(1, CAP / fullHoldTokens);
+    state.accomFactor = accomFactor;
+
+    const rows = el.holdBody.querySelectorAll("tr");
+    let committedTokens = 0;
+    rows.forEach(tr => {
+      if (tr.classList.contains("balance")) return; // handled after
+      const statedUsd = parseFloat(tr.dataset.statedUsd);
+      const statedMonths = parseFloat(tr.dataset.statedMonths);
+      const isFullRow = tr.dataset.summaryRow === "1";
+      const effUsd = statedUsd * accomFactor;
+      const tokens = effUsd / state.price;
+      const pctCap = (tokens / CAP) * 100;
+      if (!isFullRow){
+        const effMonths = statedMonths * accomFactor;
+        tr.querySelector(".effmo").textContent = effMonths.toFixed(2) + " mo";
+      }
+      tr.querySelector(".usd").textContent = fmtUSDFull(effUsd);
+      tr.querySelector(".tok").textContent = fmtTok(tokens);
+      tr.querySelector(".pct").textContent = pctCap.toFixed(4) + "%";
+      if (isFullRow){
+        committedTokens = tokens; // the summary row IS the full committed total
+      }
+    });
+
+    const balRow = el.holdBody.querySelector("tr.balance");
+    const balanceTokens = Math.max(CAP - committedTokens, 0);
+    const balanceUSD = balanceTokens * state.price;
+    const balancePct = (balanceTokens / CAP) * 100;
+    balRow.querySelector(".balval").textContent = fmtUSDFull(balanceUSD);
+    balRow.querySelector(".tok").textContent = fmtTok(balanceTokens);
+    balRow.querySelector(".pct").textContent = balancePct.toFixed(4) + "%";
+  }
+
+  // ---------- Simulation tick ----------
+  function tick(){
+    const s = state;
+    s.month += 1;
+
+    const growth = 1 + Math.min(s.month * 0.0006, 2);
+    const priceBefore = s.price;
+
+    // baseline monthly transaction volume, derived from actual platform turnover
+    // ($83.33 x 6B users), not an arbitrary constant — keeps hold-driven demand
+    // on a consistent scale with ordinary transaction demand.
+    const baseBuyUSD = MONTHLY_TURNOVER * (0.85 + Math.random()*0.30) * growth;
+    const baseSellUSD = MONTHLY_TURNOVER * (0.80 + Math.random()*0.30) * growth;
+
+    // channel advance-purchase pulse: every HOLD_MONTHS_CHANNEL months, the supply
+    // chain re-ups its 6-month hold in one lump buy (Section 9 / whitepaper point 8).
+    const isRestock = s.month > 0 && s.month % HOLD_MONTHS_CHANNEL === 0;
+    const restockUSDFinal = isRestock ? CHANNEL_TOTAL_USD : 0;
+
+    const buyUSD = baseBuyUSD + restockUSDFinal;
+    const sellUSD = baseSellUSD;
+
+    const buyTok = buyUSD / priceBefore;
+    const sellTok = sellUSD / priceBefore;
+    const netTok = buyTok - sellTok;
+    const totalTok = buyTok + sellTok;
+
+    const buyTax = buyUSD * 0.005;
+    const sellTax = sellUSD * 0.005;
+    const taxTotal = buyTax + sellTax;
+
+    // v2 fund split: above-floor premium on every purchase now flows to the pool
+    // (in addition to tax), so more tokens are released into circulation sooner.
+    // Only the floor-equivalent value of the purchase, net of buy tax, still
+    // accrues to the GK Bharta Reserve.
+    const premiumToPool = buyTok * Math.max(priceBefore - FLOOR, 0);
+    s.pool += taxTotal + premiumToPool;
+
+    const toReserve = Math.max((buyTok * FLOOR) - buyTax, 0);
+    s.reserve += toReserve;
+
+    // price move — anchored toward the market-cap-derived value, which itself
+    // grows with platform/commodity-capture growth over time
+    const anchor = marketCapPrice(growth);
+    let pct = (netTok/totalTok) * 0.10 + (Math.random()-0.5) * 0.05;
+    pct += ((anchor - priceBefore) / priceBefore) * 0.05;
+    let newPrice = priceBefore * (1 + pct);
+    let intervened = false;
+    let reserveStrained = false;
+    let defenseCost = 0;
+    if (newPrice <= FLOOR){
+      newPrice = FLOOR + Math.random()*0.12;
+      intervened = true;
+      // GK Bharta draws on the reserve to defend the floor
+      defenseCost = totalTok * priceBefore * 0.01;
+      if (defenseCost > s.reserve){
+        reserveStrained = true;
+        defenseCost = s.reserve; // reserve can't go negative — defense is strained
+      }
+      s.reserve -= defenseCost;
+    }
+    s.price = newPrice;
+
+    // supply release
+    const targetCirc = Math.min(s.pool / FLOOR, CAP);
+    let released = 0;
+    if (targetCirc > s.circulating){
+      released = targetCirc - s.circulating;
+      s.circulating = targetCirc;
+      s.releasedThisRun += released;
+    }
+
+    s.history.push({ month: s.month, price: s.price, anchor, intervened, restock: isRestock });
+    if (s.history.length > 6000) s.history.shift();
+
+    // logging
+    if (isRestock){
+      const moveNote = newPrice > priceBefore ? `price moved $${priceBefore.toFixed(2)} → $${newPrice.toFixed(2)}` : `price held near $${newPrice.toFixed(2)}`;
+      log(s.month, `◆ <b>Channel restock</b> — supply chain re-purchases its 6-month hold (${fmtUSD(restockUSDFinal)}) · ${moveNote}`, "restock");
+    }
+    if (intervened){
+      const strainNote = reserveStrained ? " · <b>reserve strained</b> — defense capped by available funds" : "";
+      log(s.month, `⚠ Floor tested — <b>manual intervention</b> by GK Bharta · drew ${fmtUSD(defenseCost)} from reserve · price held at $${FLOOR.toFixed(2)}${strainNote}`, reserveStrained ? "intervene strained" : "intervene");
+    } else if (!isRestock) {
+      const dir = netTok >= 0 ? "net buy pressure" : "net sell pressure";
+      log(s.month, `Tax +${fmtUSD(taxTotal)} + premium +${fmtUSD(premiumToPool)} → pool · +${fmtUSD(toReserve)} → reserve · released +${fmtTok(released)} DPR · anchor $${anchor.toFixed(2)} · ${dir}`);
+    }
+
+    // milestones
+    const pctCap = (s.circulating/CAP)*100;
+    [0.001, 0.01, 0.1, 1, 5, 10, 25, 50, 100].forEach(m => {
+      if (pctCap >= m && !s.milestoneLogged[m]){
+        s.milestoneLogged[m] = true;
+        log(s.month, `◆ Milestone — circulating supply passed ${m}% of the 498B locked cap`, "milestone");
+      }
+    });
+
+    render();
+  }
+
+  // ---------- Render ----------
+  function render(){
+    const s = state;
+    el.month.textContent = fmtMonth(s.month);
+    el.monthFoot.textContent = s.month === 0 ? "since launch" : (s.month/12).toFixed(1) + " yrs since launch";
+
+    el.price.textContent = "$" + s.price.toFixed(2);
+    const last = s.history[s.history.length-1];
+    el.priceFoot.textContent = last && last.intervened ? "floor defended this tick" : "floor $" + FLOOR.toFixed(2);
+    el.price.className = "value " + (last && last.intervened ? "" : "gold");
+
+    el.pool.textContent = fmtUSD(s.pool);
+    el.pool.title = fmtUSDFull(s.pool);
+    el.poolFoot.textContent = "tax + above-floor premium";
+
+    el.circ.textContent = fmtTok(s.circulating) + " DPR";
+    el.circ.title = s.circulating.toLocaleString(undefined,{maximumFractionDigits:0}) + " DPR";
+    el.circFoot.textContent = "of 498B locked cap";
+
+    el.reserve.textContent = fmtUSD(s.reserve);
+    el.reserve.title = fmtUSDFull(s.reserve);
+    const lastEntry = s.history[s.history.length-1];
+    el.reserveFoot.textContent = (lastEntry && lastEntry.intervened) ? "drawn down this tick" : "funds floor defense";
+
+    // market-cap anchor
+    const anchorNow = lastEntry ? lastEntry.anchor : marketCapPrice(1);
+    el.anchor.textContent = "$" + anchorNow.toFixed(2);
+    el.anchorFoot.textContent = "70% of $140T commodity mkt + turnover";
+
+    // GK Bharta reserved token value (1.5T tokens at live market price)
+    const reservedValue = RESERVED * s.price;
+    el.reservedValue.textContent = fmtUSD(reservedValue);
+    el.reservedValue.title = fmtUSDFull(reservedValue);
+    el.reservedValueFoot.textContent = "illustrative — no open market";
+    el.reservedLiveValue.textContent = fmtUSD(reservedValue);
+
+    const pctCap = (s.circulating/CAP)*100;
+    el.gaugeFill.style.width = Math.min(100, Math.max(pctCap, 0.05)) + "%";
+    el.gaugePct.textContent = pctCap.toFixed(6) + "%";
+    el.releasedRun.textContent = fmtTok(s.releasedThisRun) + " DPR";
+
+    if (s.month >= 6){
+      const perMonth = s.releasedThisRun / s.month;
+      const remaining = CAP - s.circulating;
+      const monthsLeft = perMonth > 0 ? remaining / perMonth : Infinity;
+      const yearsLeft = monthsLeft / 12;
+      el.eta.textContent = isFinite(yearsLeft)
+        ? `At the current release pace (~${fmtTok(perMonth)} DPR/month), the full 498B locked cap would take roughly ${yearsLeft >= 1000 ? yearsLeft.toExponential(1) : yearsLeft.toLocaleString(undefined,{maximumFractionDigits:0})} years to reach.`
+        : `Release pace is currently flat — no new tokens entering circulation.`;
+    }
+
+    draw();
+    renderHoldTable();
+
+    // hold accommodation factor (computed inside renderHoldTable, read back here)
+    const accomPct = (s.accomFactor || 1) * 100;
+    el.accom.textContent = accomPct.toFixed(1) + "%";
+    el.accom.className = "value " + (accomPct >= 99.95 ? "green" : "");
+    el.accomFoot.textContent = accomPct >= 99.95 ? "all stakeholders at full hold" : "holds scaled down to fit 498B cap";
+  }
+
+  // ---------- Controls ----------
+  function scheduleNext(){
+    clearTimeout(timerId);
+    if (!running) return;
+    timerId = setTimeout(() => { tick(); scheduleNext(); }, BASE_INTERVAL / speed);
+  }
+
+  el.playBtn.addEventListener("click", () => {
+    running = !running;
+    el.playBtn.textContent = running ? "⏸ Pause" : "▶ Resume";
+    el.statusText.textContent = running ? "RUNNING" : "PAUSED";
+    el.statusDot.classList.toggle("live", running);
+    el.statusDot.classList.toggle("paused", !running);
+    if (running) scheduleNext();
+    else clearTimeout(timerId);
+  });
+
+  el.resetBtn.addEventListener("click", () => {
+    el.ledger.innerHTML = "";
+    state = freshState();
+    log(0, "Simulation reset — pool seeded with $5,000,000 (releasing 233,645 DPR at the $21.40 floor); GK Bharta Reserve starts at $0.");
+    render();
+    if (!running){
+      running = true;
+      el.playBtn.textContent = "⏸ Pause";
+      el.statusText.textContent = "RUNNING";
+      el.statusDot.classList.add("live");
+      el.statusDot.classList.remove("paused");
+    }
+    scheduleNext();
+  });
+
+  el.speedGroup.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-speed]");
+    if (!btn) return;
+    speed = parseFloat(btn.dataset.speed);
+    [...el.speedGroup.children].forEach(b => b.classList.toggle("active", b === btn));
+    if (running) scheduleNext();
+  });
+
+  // ---------- Init ----------
+  function init(){
+    sizeCanvas();
+    state = freshState();
+    buildHoldTable();
+    log(0, "Simulation started — pool seeded with $5,000,000 (releasing 233,645 DPR at the $21.40 floor); GK Bharta Reserve starts at $0.");
+    render();
+    scheduleNext();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
