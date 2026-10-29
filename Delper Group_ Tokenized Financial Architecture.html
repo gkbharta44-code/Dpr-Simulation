@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Delper Group: Tokenized Financial Architecture</title>
+<style>
+  :root {
+    --bg: #f7f6f2;
+    --surface: #ffffff;
+    --text: #1d1d1b;
+    --muted: #6b6a64;
+    --border: #e2e0d8;
+    --accent: #1f4e79;
+    --accent-soft: #e6eef6;
+    --warn: #8a5a00;
+    --warn-soft: #fbf3e2;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #161614;
+      --surface: #201f1c;
+      --text: #ecebe6;
+      --muted: #a3a197;
+      --border: #3a3935;
+      --accent: #8ab4de;
+      --accent-soft: #1f2d3b;
+      --warn: #e8b85c;
+      --warn-soft: #302714;
+      color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #161614;
+    --surface: #201f1c;
+    --text: #ecebe6;
+    --muted: #a3a197;
+    --border: #3a3935;
+    --accent: #8ab4de;
+    --accent-soft: #1f2d3b;
+    --warn: #e8b85c;
+    --warn-soft: #302714;
+    color-scheme: dark;
+  }
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font-family: Georgia, "Times New Roman", serif;
+    line-height: 1.6;
+    font-size: 17px;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 32px 20px 64px; }
+  header { border-bottom: 2px solid var(--accent); padding-bottom: 20px; margin-bottom: 32px; }
+  .eyebrow { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); margin: 0 0 8px; }
+  h1 { font-size: clamp(26px, 5vw, 36px); line-height: 1.2; margin: 0 0 12px; font-weight: 700; }
+  .lede { color: var(--muted); margin: 0; }
+  h2 { font-size: 22px; margin: 40px 0 14px; color: var(--accent); }
+  p { margin: 0 0 14px; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin: 24px 0 8px; }
+  .stat { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+  .stat .val { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 22px; font-weight: 700; color: var(--accent); }
+  .stat .lbl { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin-bottom: 12px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--text); }
+  .tag { display: inline-block; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 12px; background: var(--accent-soft); color: var(--accent); padding: 2px 8px; border-radius: 999px; margin-right: 6px; }
+  .bars { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 20px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .bar-row { display: grid; grid-template-columns: minmax(120px, 210px) 1fr auto; gap: 12px; align-items: center; margin-bottom: 12px; font-size: 14px; }
+  .bar-track { background: var(--accent-soft); border-radius: 6px; height: 16px; overflow: hidden; }
+  .bar-fill { height: 100%; background: var(--accent); border-radius: 6px; }
+  .bar-val { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+  .bar-total { border-top: 1px solid var(--border); padding-top: 12px; margin-top: 4px; display: flex; justify-content: space-between; font-weight: 700; }
+  .timeline { position: relative; padding-left: 22px; margin: 16px 0; }
+  .timeline::before { content: ""; position: absolute; left: 6px; top: 6px; bottom: 6px; width: 2px; background: var(--border); }
+  .timeline .item { position: relative; margin-bottom: 16px; }
+  .timeline .item::before { content: ""; position: absolute; left: -21px; top: 6px; width: 12px; height: 12px; border-radius: 50%; background: var(--accent); }
+  .timeline .when { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 13px; color: var(--accent); font-weight: 600; }
+  .verdict { background: var(--accent-soft); border-left: 4px solid var(--accent); border-radius: 8px; padding: 16px 20px; margin: 14px 0; }
+  .verdict strong { color: var(--accent); }
+  .caution { background: var(--warn-soft); border-left: 4px solid var(--warn); border-radius: 8px; padding: 18px 20px; margin-top: 40px; }
+  .caution h2 { color: var(--warn); margin-top: 0; }
+  .caution ul { margin: 0; padding-left: 20px; }
+  .caution li { margin-bottom: 8px; }
+  footer { margin-top: 48px; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; font-size: 12px; color: var(--muted); }
+  @media (max-width: 560px) {
+    .bar-row { grid-template-columns: 1fr auto; }
+    .bar-row .bar-track { grid-column: 1 / -1; grid-row: 2; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">Summary · Project Iron Nexus</p>
+  <h1>Delper Group: Tokenized Financial Architecture</h1>
+  <p class="lede">A $40.00 trillion global infrastructure network financed and operated through a closed-loop ERC-20 token economy, with a five-year build window and a 50-year mandate.</p>
+</header>
+
+<section>
+  <h2>At a glance</h2>
+  <div class="stats">
+    <div class="stat"><div class="val">$40.00T</div><div class="lbl">Baseline capital requirement</div></div>
+    <div class="stat"><div class="val">$46.59T</div><div class="lbl">Launch debt incl. interest during construction</div></div>
+    <div class="stat"><div class="val">$8.65T / yr</div><div class="lbl">Maximum run-rate liquidity</div></div>
+    <div class="stat"><div class="val">5 yr 5 mo</div><div class="lbl">Projected debt extinguishment</div></div>
+    <div class="stat"><div class="val">$165.46T</div><div class="lbl">Projected post-debt cash surplus</div></div>
+  </div>
+</section>
+
+<section>
+  <h2>The tokenomics engine</h2>
+  <p>The monetary framework centers on the ERC-20 Delper Token, owned 100% by GK Bharta. The document describes three core rules.</p>
+  <div class="card">
+    <h3>100% fiat-backed reserve</h3>
+    <p>Tokens are not minted without backing. Each token in circulation is described as backed 1:1 by USD, EUR, or INR held in GK Bharta’s tier-1 banking clearing treasury.</p>
+  </div>
+  <div class="card">
+    <h3>2% transactional tax layer</h3>
+    <p>A 1% tax applies on fiat deposit (buy) and a 1% tax on fiat redemption (sell). The document states that all internal economic activity, from industrial procurement to household groceries, would be transacted in tokens.</p>
+  </div>
+  <div class="card">
+    <h3>6-month liquidity velocity cap</h3>
+    <p>Stakeholders may hold tokens only up to a value equal to six months of their transaction throughput, intended to limit hoarding and control velocity.</p>
+  </div>
+</section>
+
+<section>
+  <h2>Rollout and volume</h2>
+  <div class="timeline">
+    <div class="item">
+      <div class="when">Year 2</div>
+      <p>Tokens launch across Track 1 and Track 2, capturing retail and B2B supply chains. Early volume is projected at $4.62T per year, pre-funding $931.20B in cash reserves.</p>
+    </div>
+    <div class="item">
+      <div class="when">Year 7</div>
+      <p>Delper Aegis is added to the token ecosystem.</p>
+    </div>
+    <div class="item">
+      <div class="when">Years 15 to 50</div>
+      <p>With Project Iron Nexus fully integrated, transaction volume is projected at 8.5x the combined global revenue base, or $40.37T per year.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>The $12.11T permanent float</h2>
+  <p>The six-month holding cap is projected to keep $12.11T in fiat deposits within GK Bharta’s reserves. Invested in AAA sovereign debt at a 4.00% return, the document estimates $484.40B per year in interest income.</p>
+</section>
+
+<section>
+  <h2>Debt funding and extinguishment</h2>
+  <p>The $40.00T baseline is wrapped in a AAA supranational guarantee engine, described as backed by the World Bank and AIIB, producing $46.59T in launch debt. Four liquidity streams are projected to retire it at full scale:</p>
+  <div class="bars">
+    <div class="bar-row"><span>Net operational system tolls</span><div class="bar-track"><div class="bar-fill" style="width:100%"></div></div><span class="bar-val">$3.71T</span></div>
+    <div class="bar-row"><span>GK corporate profit share</span><div class="bar-track"><div class="bar-fill" style="width:98.7%"></div></div><span class="bar-val">$3.66T</span></div>
+    <div class="bar-row"><span>2% total token tax capture</span><div class="bar-track"><div class="bar-fill" style="width:21.8%"></div></div><span class="bar-val">$0.81T</span></div>
+    <div class="bar-row"><span>Treasury float yield</span><div class="bar-track"><div class="bar-fill" style="width:12.9%"></div></div><span class="bar-val">$0.48T</span></div>
+    <div class="bar-total"><span>Total annual run-rate</span><span>$8.65T / yr</span></div>
+  </div>
+</section>
+
+<section>
+  <h2>Projected outcomes</h2>
+  <div class="verdict"><strong>Debt paydown:</strong> At $8.65T per year, the document projects the $46.59T debt will be cleared 5 years and 5 months after launch, by Year 20, Month 5.</div>
+  <div class="verdict"><strong>Post-debt period:</strong> For the remaining 44.6 years, net tolls of $3.71T per year are projected to accumulate to $165.46T in unencumbered surplus.</div>
+  <div class="verdict"><strong>Price stability:</strong> The document argues that pricing essentials and industrial assets on the platform would eliminate external inflation for users.</div>
+</section>
+
+<section class="caution">
+  <h2>Points to verify before relying on this</h2>
+  <ul>
+    <li><strong>Guarantee and endorsements.</strong> The claimed AAA supranational guarantee from the World Bank and AIIB, and any onboarding of sovereign customs agencies, need independent confirmation.</li>
+    <li><strong>Mandatory use and holding caps.</strong> Requiring all internal transactions in a single token, with caps on holdings, raises significant legal and regulatory questions in most jurisdictions, including money transmission, securities, and capital controls.</li>
+    <li><strong>Unstated assumptions.</strong> The totals reconcile arithmetically (for example, $46.59T ÷ $8.65T ≈ 5.4 years), but the volume, adoption, and tax-capture figures rest on assumptions the document does not explain.</li>
+    <li><strong>Inflation claim.</strong> Controlling prices across a closed platform does not by itself remove external inflation, which depends on broader monetary and supply conditions.</li>
+  </ul>
+</section>
+
+<footer>Summary of a supplied document. Figures are as stated in the source and have not been independently verified.</footer>
+
+</div>
+</body>
+</html>
